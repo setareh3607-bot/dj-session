@@ -1,6 +1,7 @@
 import json
 
 from django.contrib.auth import authenticate
+from django.contrib.auth.models import AnonymousUser
 from django.http import JsonResponse
 
 from .models import Session
@@ -43,11 +44,13 @@ def test_session_view(request):
         session.session_data = json.dumps(data)
         session.save(update_fields=["session_data"])
         request.session_data = session.session_data
+        request.session_user_id = session.user_id
 
     return JsonResponse(
         {
             "session_key": session_key,
             "session_data": data,
+            "user_id": getattr(request, "session_user_id", None),
         }
     )
 
@@ -64,10 +67,35 @@ def login_view(request):
         return JsonResponse({"error": "Invalid credentials"}, status=400)
 
     session_key = getattr(request, "session_key", None)
-    if session_key:
-        Session.objects.filter(session_key=session_key).update(user_id=user.id)
+    if not session_key:
+        return JsonResponse({"error": "No active session found."}, status=400)
+
+    Session.objects.filter(session_key=session_key).update(user_id=user.id)
+
+    if hasattr(request, "custom_session"):
+        request.custom_session.user_id = user.id
+    request.session_user_id = user.id
+    request.user = user
 
     return JsonResponse(
         {
             "message": "Login successful",
-        })
+            "user_id": user.id,
+        }
+    )
+
+
+def logout_view(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Only POST method is allowed."}, status=405)
+
+    session_key = getattr(request, "session_key", None)
+    if session_key:
+        Session.objects.filter(session_key=session_key).update(user_id=None)
+
+    if hasattr(request, "custom_session"):
+        request.custom_session.user_id = None
+    request.session_user_id = None
+    request.user = AnonymousUser()
+
+    return JsonResponse({"message": "Logout successful"})
