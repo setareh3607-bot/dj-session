@@ -1,3 +1,7 @@
+# Hi, I'm Tahereh Roudbari 👋
+
+## Python & Django Developer
+
 # Bring Your Own Session
 
 This project is part of **HW28 - Custom Session Middleware**.
